@@ -1,18 +1,31 @@
 package com.example.memorycanvas;
 
+import android.app.AlarmManager;
+import android.app.PendingIntent;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.os.AsyncTask;
+import android.os.Bundle;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+import android.widget.Toast;
+import android.app.Activity;
+
 
 import androidx.annotation.Nullable;
 
 import java.util.ArrayList;
+
+import static androidx.core.app.NavUtils.navigateUpTo;
 
 class Card {
     Paint p = new Paint();
@@ -44,32 +57,43 @@ class Card {
 
 }
 
+
+
 public class TilesView extends View {
     // пауза для запоминания карт
-    final int PAUSE_LENGTH = 2; // в секундах
+    final int PAUSE_LENGTH = 1; // в секундах
     boolean isOnPauseNow = false;
 
     // число открытых карт
-    int openedCard = 0;
+    ArrayList<Card> openedCard = new ArrayList<>();
 
     ArrayList<Card> cards = new ArrayList<>();
 
     int width, height; // ширина и высота канвы
+    private Context activity;
 
-    public TilesView(Context context) {
-        super(context);
-    }
 
     public TilesView(Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
+
+
         // 1) заполнить массив tiles случайными цветами
         // сгенерировать поле 2*n карт, при этом
-        // должно быть ровно n пар карт разных цветов
-        cards.add(new Card(0,0, 200, 150, Color.YELLOW));
-        cards.add(new Card(200+50, 0, 200 + 200 + 50, 150, Color.YELLOW));
 
-        cards.add(new Card(0,200, 200, 150 + 200, Color.RED));
-        cards.add(new Card(200+50, 200, 200 + 200 + 50, 150+200, Color.RED));
+        // должно быть ровно n пар карт разных цветов
+
+        activity = (MainActivity) context;
+        cards.add(new Card(10,10, 325, 200, Color.RED));
+        cards.add(new Card(10+325+50, 10, 325, 200, Color.YELLOW));
+
+        cards.add(new Card(10,10+250, 325, 200, Color.GREEN));
+        cards.add(new Card(10+325+50, 10+250, 325, 200, Color.RED));
+
+        cards.add(new Card(10,10+500, 325, 200, Color.BLUE));
+        cards.add(new Card(10+325+50, 10+500, 325, 200, Color.YELLOW));
+
+        cards.add(new Card(10,10+750, 325, 200, Color.BLUE));
+        cards.add(new Card(10+325+50, 10+750, 325, 200, Color.GREEN));
     }
 
     @Override
@@ -79,11 +103,15 @@ public class TilesView extends View {
         height = canvas.getHeight();
         // 2) отрисовка плиток
         // задать цвет можно, используя кисть
-        Paint p = new Paint();
         for (Card c: cards) {
             c.draw(canvas);
         }
+
     }
+
+
+
+
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
@@ -94,50 +122,98 @@ public class TilesView extends View {
         if (event.getAction() == MotionEvent.ACTION_DOWN && !isOnPauseNow)
         {
             // палец коснулся экрана
+            if (cards.size() == 0){
+                Toast toast = Toast.makeText(activity, "Вы выиграли", Toast.LENGTH_LONG);
+                toast.show();
 
+            }
             for (Card c: cards) {
 
-                if (openedCard == 0) {
+                if (openedCard.size() == 0) {
                     if (c.flip(x, y)) {
                         Log.d("mytag", "card flipped: " + openedCard);
-                        openedCard ++;
+                        openedCard.add(c);
                         invalidate();
                         return true;
                     }
                 }
 
-                if (openedCard == 1) {
-
-
-                    // перевернуть карту с задержкой
+                if (openedCard.size() == 1) {
                     if (c.flip(x, y)) {
-                        openedCard ++;
-                        // 1) если открылис карты одинакового цвета, удалить их из списка
-                        // например написать функцию, checkOpenCardsEqual
+                        openedCard.add(c);
+                        invalidate();
+                        return true;
+                    }
+                }
 
-                        // 2) проверить, остались ли ещё карты
+                if (openedCard.size() == 2) {
+                        for(int i = 0; i < openedCard.size();){
+                            for(int i2 = 1; i2 < openedCard.size();){
+                                if(openedCard.get(i2).color == openedCard.get(i).color ) {
+                                    cards.remove(openedCard.get(i2));
+                                    cards.remove(openedCard.get(i));
+                                    openedCard.clear();
+                                    PauseTask task = new PauseTask();
+                                    task.execute(PAUSE_LENGTH);
+                                    isOnPauseNow = true;
+                                    invalidate();
+                                    return true;
+                                }
+
+
+                                if(openedCard.get(i2).color != openedCard.get(i).color){
+                                    invalidate();
+                                    PauseTask task = new PauseTask();
+                                    task.execute(PAUSE_LENGTH);
+                                    isOnPauseNow = true;
+                                    return true;
+                                }
+
+                        }
+                    }
+
+
+
+
+                    }}
+                                    // 2) проверить, остались ли ещё карты
                         // иначе сообщить об окончании игры
 
                         // если карты открыты разного цвета - запустить задержку
-                        invalidate();
-                        PauseTask task = new PauseTask();
-                        task.execute(PAUSE_LENGTH);
-                        isOnPauseNow = true;
-                        return true;
-                    }
-                }
 
-            }
-        }
+                    }
+
+
+
 
 
          // заставляет экран перерисоваться
         return true;
     }
 
+
     public void newGame() {
-        // запуск новой игры
+        cards.clear();
+
+        cards.add(new Card(10,10, 325, 200, Color.GREEN));
+        cards.add(new Card(10+325+50, 10, 325, 200, Color.RED));
+
+        cards.add(new Card(10,10+250, 325, 200, Color.YELLOW));
+        cards.add(new Card(10+325+50, 10+250, 325, 200, Color.BLUE));
+
+        cards.add(new Card(10,10+500, 325, 200, Color.RED));
+        cards.add(new Card(10+325+50, 10+500, 325, 200, Color.BLUE));
+
+        cards.add(new Card(10,10+750, 325, 200, Color.GREEN));
+        cards.add(new Card(10+325+50, 10+750, 325, 200, Color.YELLOW));
+
+
+
+
     }
+
+
+
 
     class PauseTask extends AsyncTask<Integer, Void, Void> {
         @Override
@@ -160,9 +236,8 @@ public class TilesView extends View {
                     c.isOpen = false;
                 }
             }
-            openedCard = 0;
+            openedCard.clear();
             isOnPauseNow = false;
             invalidate();
         }
-    }
-}
+    } }
